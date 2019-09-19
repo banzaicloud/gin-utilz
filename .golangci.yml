@@ -1,0 +1,11 @@
+linters-settings:
+    golint:
+        min-confidence: 0.1
+    goimports:
+        local-prefixes: github.com/banzaicloud/gin-utilz
+
+linters:
+    enable-all: true
+    disable:
+        - funlen
+        - maligned
