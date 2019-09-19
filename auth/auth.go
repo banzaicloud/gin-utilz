@@ -18,9 +18,9 @@ import (
 	"context"
 	"encoding/base32"
 	"fmt"
-	"log"
 	"net/http"
 
+	"emperror.dev/errors"
 	"github.com/dgrijalva/jwt-go"
 	jwtRequest "github.com/dgrijalva/jwt-go/request"
 	"github.com/gin-gonic/gin"
@@ -46,8 +46,9 @@ type ScopedClaims struct {
 }
 
 type options struct {
-	tokenStore TokenStore
-	extractors []jwtRequest.Extractor
+	tokenStore   TokenStore
+	extractors   []jwtRequest.Extractor
+	errorHandler ErrorHandler
 }
 
 type Option interface {
@@ -75,6 +76,12 @@ func ExtractorOption(extractor jwtRequest.Extractor) Option {
 	})
 }
 
+func ErrorHandlerOption(errorHandler ErrorHandler) Option {
+	return optionFunc(func(o *options) {
+		o.errorHandler = errorHandler
+	})
+}
+
 // JWTAuthHandler returns a new JWT authentication Gin Handler
 // Parameters:
 // - signingKey - the HMAC JWT token signing key
@@ -89,9 +96,12 @@ func JWTAuthHandler(
 	contextSetter ContextSetter,
 	opts ...Option,
 ) gin.HandlerFunc {
-	var o options
+	o := &options{
+		errorHandler: noopErrorHandler{},
+	}
+
 	for _, opt := range opts {
-		opt.apply(&o)
+		opt.apply(o)
 	}
 
 	signingKeyBase32 := []byte(base32.StdEncoding.EncodeToString([]byte(signingKey)))
@@ -123,21 +133,27 @@ func JWTAuthHandler(
 		isTokenWhitelisted, err := isTokenWhitelisted(o.tokenStore, &claims)
 
 		if err != nil {
-			c.AbortWithStatusJSON(http.StatusInternalServerError,
+			o.errorHandler.Handle(c.Request.Context(), errors.WrapIf(err, "failed to lookup user token"))
+
+			c.AbortWithStatusJSON(
+				http.StatusInternalServerError,
 				gin.H{
 					"message": "Failed to validate user token",
 					"error":   err.Error(),
-				})
-			log.Println("Failed to lookup user token:", err)
+				},
+			)
 
 			return
 		}
 
 		if !accessToken.Valid || !isTokenWhitelisted {
-			c.AbortWithStatusJSON(http.StatusUnauthorized,
+			c.AbortWithStatusJSON(
+				http.StatusUnauthorized,
 				gin.H{
 					"message": "Invalid token",
-				})
+				},
+			)
+
 			return
 		}
 
