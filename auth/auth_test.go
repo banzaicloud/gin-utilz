@@ -38,8 +38,12 @@ func contextSetter(c context.Context, value interface{}) context.Context {
 	return context.WithValue(c, userKey, value)
 }
 
+func contextGetter(c context.Context) interface{} {
+	return c.Value(userKey)
+}
+
 func TestJWTAuthWithoutTokenStore(t *testing.T) {
-	handler := JWTAuthHandler("blabla", claimConverter, contextSetter)
+	handler := JWTAuthHandler("blabla", claimConverter, contextSetter, contextGetter)
 	router := gin.New()
 	router.GET("/", handler)
 
@@ -81,7 +85,7 @@ func TestJWTAuthWithTokenStore(t *testing.T) {
 
 	tokenStore := inMemoryTokenStore{"1": map[string]bool{"existingTokenID": true}}
 
-	handler := JWTAuthHandler("blabla", claimConverter, contextSetter, TokenStoreOption(tokenStore))
+	handler := JWTAuthHandler("blabla", claimConverter, contextSetter, contextGetter, TokenStoreOption(tokenStore))
 
 	var currentUser interface{}
 	dummyHandler := func(c *gin.Context) {

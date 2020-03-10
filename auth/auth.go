@@ -58,6 +58,9 @@ type Option interface {
 // ContextSetter adds the resolved (and converted) claims to a context.
 type ContextSetter func(c context.Context, value interface{}) context.Context
 
+// ContextGetter gets the resolved (and converted) claims from a context.
+type ContextGetter func(c context.Context) interface{}
+
 type optionFunc func(o *options)
 
 func (fn optionFunc) apply(o *options) {
@@ -94,6 +97,7 @@ func JWTAuthHandler(
 	signingKey string,
 	claimConverter ClaimConverter,
 	contextSetter ContextSetter,
+	contextGetter ContextGetter,
 	opts ...Option,
 ) gin.HandlerFunc {
 	o := &options{
@@ -117,6 +121,12 @@ func JWTAuthHandler(
 	extractor := append(jwtRequest.MultiExtractor{jwtRequest.OAuth2Extractor}, o.extractors...)
 
 	return func(c *gin.Context) {
+
+		// If antoher handler (another auth method) has set a user already, we can bail out.
+		if contextGetter(c.Request.Context()) != nil {
+			return
+		}
+
 		var claims ScopedClaims
 		accessToken, err := jwtRequest.ParseFromRequest(c.Request, extractor, hmacKeyFunc, jwtRequest.WithClaims(&claims))
 
