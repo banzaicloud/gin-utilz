@@ -21,9 +21,10 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/dgrijalva/jwt-go"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
+	"gopkg.in/square/go-jose.v2"
+	"gopkg.in/square/go-jose.v2/jwt"
 )
 
 type contextKey string
@@ -58,8 +59,7 @@ func TestJWTAuthWithoutTokenStore(t *testing.T) {
 	req, err := http.NewRequest("GET", server.URL, nil)
 	assert.NoError(t, err)
 
-	token := jwt.New(jwt.SigningMethodHS256)
-	jwtHeader, err := token.SignedString([]byte(base32.StdEncoding.EncodeToString([]byte("blabla"))))
+	jwtHeader, err := signToken(jwt.Claims{})
 	assert.NoError(t, err)
 
 	req.Header.Add("Authorization", "Bearer "+jwtHeader)
@@ -98,8 +98,7 @@ func TestJWTAuthWithTokenStore(t *testing.T) {
 	server := httptest.NewServer(router)
 	defer server.Close()
 
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.StandardClaims{Subject: "1", Id: "nonExistingTokenID"})
-	jwtHeader, err := token.SignedString([]byte(base32.StdEncoding.EncodeToString([]byte("blabla"))))
+	jwtHeader, err := signToken(jwt.Claims{Subject: "1", ID: "nonExistingTokenID"})
 	assert.NoError(t, err)
 
 	req, err := http.NewRequest("GET", server.URL, nil)
@@ -117,8 +116,7 @@ func TestJWTAuthWithTokenStore(t *testing.T) {
 	req, err = http.NewRequest("GET", server.URL, nil)
 	assert.NoError(t, err)
 
-	token = jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.StandardClaims{Subject: "1", Id: "existingTokenID"})
-	jwtHeader, err = token.SignedString([]byte(base32.StdEncoding.EncodeToString([]byte("blabla"))))
+	jwtHeader, err = signToken(jwt.Claims{Subject: "1", ID: "existingTokenID"})
 	assert.NoError(t, err)
 
 	req.Header.Add("Authorization", "Bearer "+jwtHeader)
@@ -129,4 +127,16 @@ func TestJWTAuthWithTokenStore(t *testing.T) {
 	assert.NoError(t, resp.Body.Close())
 
 	assert.NotNil(t, currentUser, "expected user in context")
+}
+
+func signToken(claims jwt.Claims) (string, error) {
+	signer, err := jose.NewSigner(jose.SigningKey{
+		Algorithm: jose.HS256,
+		Key:       []byte(base32.StdEncoding.EncodeToString([]byte("blabla"))),
+	}, nil)
+	if err != nil {
+		return "", err
+	}
+
+	return jwt.Signed(signer).Claims(claims).CompactSerialize()
 }
