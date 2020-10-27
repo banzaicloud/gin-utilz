@@ -71,13 +71,7 @@ func (Oauth2TokenExtractor) ExtractToken(r *http.Request) (string, error) {
 		return token, nil
 	}
 
-	// and finally we attempt to get the token from
-	// the user session cookie
-	cookie, err := r.Cookie("user_sess")
-	if err != nil {
-		return "", err
-	}
-	return cookie.Value, nil
+	return "", ErrNoTokenInRequest
 }
 
 type TokenStore interface {
