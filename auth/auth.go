@@ -211,7 +211,7 @@ func JWTAuthHandler(
 			return
 		}
 
-		isTokenWhitelisted, err := isTokenWhitelisted(o.tokenStore, &claims)
+		tokenPresentInStore, err := isTokenValidInTokenStore(o.tokenStore, &claims)
 		if err != nil {
 			o.errorHandler.Handle(c.Request.Context(), errors.WrapIf(err, "failed to lookup user token"))
 
@@ -226,11 +226,12 @@ func JWTAuthHandler(
 			return
 		}
 
-		if !isTokenWhitelisted {
+		if !tokenPresentInStore {
 			c.AbortWithStatusJSON(
 				http.StatusUnauthorized,
 				gin.H{
 					"message": "Invalid token",
+					"error":   "no matching token in token store",
 				},
 			)
 
@@ -246,7 +247,7 @@ func JWTAuthHandler(
 	}
 }
 
-func isTokenWhitelisted(tokenStore TokenStore, claims *ScopedClaims) (bool, error) {
+func isTokenValidInTokenStore(tokenStore TokenStore, claims *ScopedClaims) (bool, error) {
 	if tokenStore == nil {
 		return true, nil
 	}
